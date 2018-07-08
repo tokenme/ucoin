@@ -1,0 +1,60 @@
+{
+ "config": {
+   "chainId": 7806,
+    "homesteadBlock": 1,
+    "eip150Block": 2,
+    "eip150Hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "eip155Block": 3,
+    "eip158Block": 3,
+    "byzantiumBlock": 4,
+    "ethash": {}
+ },
+ "alloc": {
+    "0x12c9b5a2084decd1f73af37885fc1e0ced5d5ee8": {
+      "balance": "100000000000000000000000000000"
+    }
+ },
+ "difficulty": "0x2000",
+ "gasLimit": "0xffffffff",
+ "nonce": "0x0000000000000000",
+ "coinbase": "0x0000000000000000000000000000000000000000",
+ "mixhash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+ "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+ "extraData": "0x123458db4e347b1234537c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa",
+ "timestamp": "0x5b178b44"
+}
+
+geth --datadir "/data/ucoin/geth" account new;
+geth --datadir "/data/ucoin/geth" --ethash.dagdir /data/ucoin/geth/ethash init /etc/geth/genesis.json;
+
+geth --datadir "/data/ucoin/geth" --ethash.dagdir "/data/ucoin/geth/ethash" --identity "code1" --networkid 7806 --port 30303 -rpc --rpcaddr 0.0.0.0 --rpcport 30403 --rpcapi "db,eth,net,web3" --rpcvhosts * --gasprice 100000000 --nousb --nodiscover console;
+
+sudo mv geth /usr/local/bin/;
+sudo ln -s /usr/local/bin/geth /usr/bin/geth;
+
+sudo mv geth /etc/geth;
+sudo mkdir /data/ucoin;
+sudo mkdir /data/ucoin/geth;
+sudo geth --datadir "/data/ucoin/geth" init /etc/geth/genesis.json;
+
+/data/ucoin/geth/static-nodes.json 
+
+miner.setEtherbase('0x12c9b5a2084decd1f73af37885fc1e0ced5d5ee8')
+
+
+[
+  "enode://30cd0d1efc6ffa857502d72f388d8c264ef19f40a8121466e5da61ede6fc7d9bc5e587720c7fd361b07e83b2ed99d74b4744a3410a7430a82fc672851d411777@10.241.58.243:30303?discport=0",
+  "enode://4a0e835db4ad1fd252318fd29ab327411c400545e78557c441973251b25be2e35f041e90fa530a023858ff47879c930c61b9cea464ea522ab1eae18b0e692e84@10.241.59.119:30303?discport=0",
+  "enode://70a341e86670ad2a559b260a498da2d46fbb0fa835026897dd6177ca117d2519511144b48a997e4618c44379868bc79d4f800ffba33c29cedbaef19d664ee797@10.241.59.12:30303?discport=0",
+  "enode://f10b0930f1278191efc88f82b3f4934f55bcfe8341b39e72dda34e8f4414338b2d0bde65a5a24d3cb8398120bbfc44c9ae196d8e3bfc607f8ca93a21bf9d8169@10.241.60.127:30303?discport=0",
+  "enode://f959e1f1847638f792d3ca30287179c860a87d350fbc990fe88c60b6051a69dad7b778900ff4e953e33144db98b5d331dc5c4dca995e6688ea46952a4abfa929@10.241.60.13:30303?discport=0",
+  "enode://ab061a16dd4b45b7061622ad3c7fd5ccaa9a35475b071443c6f6f89a8e8208cf05bbe795ea398db094633c1475a7223f37ee3bc53dbb65d8b2037af4c442a964@10.241.60.14:30303?discport=0",
+  "enode://a249b19001887909061c01631bdfc5043926d0ac0f2885d4a3704fc8ebab1feec8552b74500fcc115e921b29edebb1b0d20aee70dd63b3f4f5ddd50fadb01195@10.153.202.134:30303?discport=0",
+  "enode://25053a7a999112755678ce7792b9da83fa746dccf41b26309f2a6acf751495646b3c5d74bee4aaf0992ff7d0816ef849649f4364bbc200bd9911435323ceff6b@10.153.203.13:30303?discport=0",
+  "enode://2b606d3c21fa3de7f297665ec93bfa99881e57ee84be1eb6f499676f31edead0b9f5aea08f54378a2c310b792430e2550db1f3e3164771c0f801855d5a52ba11@10.153.197.168:30303?discport=0",
+  "enode://5734a557466a043b3ae06ad69b90ea575e9e6167a4a8f0452e6ce310cc141e936a478f6e00a53176278e00bd2d94dd39cc2b20069fb7f3c59a66b87e84a1ff2a@10.153.202.118:30303?discport=0",
+  "enode://14ee4ef53c337d3a9327eec24b67156e8625faf9ae850727d9908f3d5a3f0255062a5fdbff5650c2b927d05fdb40285dccb671beff76ecbb3aa1e82273f8d57c@10.153.207.201:30303?discport=0"
+  "enode://a1a80909118fbf7be672e0488a31e693bfae99cd77be5501424a82187992b5bf8ba31190322623d9089c6efef48713f0404b71e185e41d0c0aa859994db5c8c2@10.153.207.140:30303?discport=0"
+]
+
+curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_getBalance","params":["0x12c9b5a2084decd1f73af37885fc1e0ced5d5ee8", "latest"],"id":1}' https://geth.xibao100.com
