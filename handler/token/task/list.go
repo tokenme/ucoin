@@ -24,6 +24,13 @@ type ListRequest struct {
 }
 
 func ListHandler(c *gin.Context) {
+	userContext, exists := c.Get("USER")
+	var user common.User
+
+	if exists {
+		user = userContext.(common.User)
+	}
+
 	var req ListRequest
 	if CheckErr(c.Bind(&req), c) {
 		return
@@ -42,6 +49,7 @@ func ListHandler(c *gin.Context) {
 		where  string
 		wheres []string
 	)
+	wheres = append(wheres, fmt.Sprintf("(erc20.tx_status=1 AND t.online_status=1 OR t.owner='%s')", db.Escape(user.Wallet)))
 	if req.Token != "" {
 		wheres = append(wheres, fmt.Sprintf("erc20.address='%s'", db.Escape(req.Token)))
 	}

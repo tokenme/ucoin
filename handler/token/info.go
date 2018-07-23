@@ -14,6 +14,11 @@ import (
 )
 
 func InfoHandler(c *gin.Context) {
+	userContext, exists := c.Get("USER")
+	var user common.User
+	if exists {
+		user = userContext.(common.User)
+	}
 	tokenAddress := c.Param("address")
 	if CheckWithCode(tokenAddress == "", NOTFOUND_ERROR, "NOT FOUND", c) {
 		return
@@ -29,11 +34,10 @@ func InfoHandler(c *gin.Context) {
 	t.symbol, 
 	t.decimals,
 	t.total_supply AS initial_supply,
-	IFNULL(txs.status, 2) AS tx_status,
+	t.tx_status,
 	t.logo,
 	t.summary
 FROM ucoin.erc20 AS t 
-LEFT JOIN ucoin.txs AS txs ON (txs.tx = t.tx)
 WHERE t.address = '%s' LIMIT 1`, db.Escape(tokenAddress))
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
@@ -56,7 +60,7 @@ WHERE t.address = '%s' LIMIT 1`, db.Escape(tokenAddress))
 		Symbol:        row.Str(3),
 		Decimals:      decimals,
 		InitialSupply: initialSupply,
-		TxStatus:      row.Uint(6),
+		TxStatus:      row.Int(6),
 		Logo:          row.Str(7),
 		Description:   row.Str(8),
 	}
@@ -65,46 +69,11 @@ WHERE t.address = '%s' LIMIT 1`, db.Escape(tokenAddress))
 		raven.CaptureError(err, nil)
 		return
 	}
-	tokenMeta, err := token.GetMetaRedis(Service)
-	if err == nil {
-		token.TotalSupply = tokenMeta.TotalSupply
-		token.TotalTransfers = tokenMeta.TotalTransfers
-		token.CirculatingSupply = tokenMeta.CirculatingSupply
+	_, _, _, _, token.TotalSupply, token.TotalTransfers, token.TotalHolders, token.CirculatingSupply, token.Balance, err = utils.TokenMeta(tokenABI, user.Wallet)
+	if err != nil {
+		log.Error(err.Error())
 	} else {
-		var foundError bool
-		token.TotalSupply, err = tokenABI.TotalSupply(nil)
-		if err != nil {
-			log.Error(err.Error())
-			foundError = true
-		}
-		token.TotalTransfers, err = tokenABI.TotalTransfers(nil)
-		if err != nil {
-			log.Error(err.Error())
-			foundError = true
-		}
-		token.TotalHolders, err = tokenABI.TotalHolders(nil)
-		if err != nil {
-			log.Error(err.Error())
-			foundError = true
-		}
-		token.CirculatingSupply, err = tokenABI.CirculatingSupply(nil)
-		if err != nil {
-			if !strings.Contains(err.Error(), "unmarshalling empty output") {
-				log.Error(err.Error())
-				foundError = true
-			}
-		}
-		if !foundError {
-			token.SaveMetaRedis(Service)
-		}
-	}
-	userContext, exists := c.Get("USER")
-	if exists {
-		user := userContext.(common.User)
-		token.Balance, err = utils.TokenBalanceOf(tokenABI, user.Wallet)
-		if err != nil {
-			log.Error(err.Error())
-		}
+		token.SaveMetaRedis(Service)
 	}
 	c.JSON(http.StatusOK, token)
 }

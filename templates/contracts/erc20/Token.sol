@@ -19,7 +19,7 @@ contract Token is MintableToken, StandardBurnableToken, PausableToken {
   }
 
   function circulatingSupply() public view returns (uint256) {
-    require(totalSupply_ > balances[owner]);
+    require(totalSupply_ >= balances[owner]);
     return totalSupply_.sub(balances[owner]);
   }
 

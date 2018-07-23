@@ -12,5 +12,6 @@ func qiniuRouter(r *gin.Engine) {
 		qiniuGroup.POST("/token/product", qiniu.TokenProductHandler)
 		qiniuGroup.POST("/token/task", qiniu.TokenTaskHandler)
 		qiniuGroup.POST("/token/logo", qiniu.TokenLogoHandler)
+		qiniuGroup.POST("/token/task/evidence", qiniu.TokenTaskEvidenceHandler)
 	}
 }

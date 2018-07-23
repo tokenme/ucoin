@@ -34,6 +34,13 @@ type ListRequest struct {
 }
 
 func ListHandler(c *gin.Context) {
+	userContext, exists := c.Get("USER")
+	var user common.User
+
+	if exists {
+		user = userContext.(common.User)
+	}
+
 	var req ListRequest
 	if CheckErr(c.Bind(&req), c) {
 		return
@@ -52,6 +59,7 @@ func ListHandler(c *gin.Context) {
 		where  string
 		wheres []string
 	)
+	wheres = append(wheres, fmt.Sprintf("(t.tx_status=1 AND t.online_status=1 OR t.owner='%s')", db.Escape(user.Wallet)))
 	if req.Token != "" {
 		wheres = append(wheres, fmt.Sprintf("erc20.address='%s'", db.Escape(req.Token)))
 	}
@@ -73,7 +81,7 @@ func ListHandler(c *gin.Context) {
 	t.name, 
 	t.price, 
 	t.amount,
-	IFNULL(txs.status, 2) AS tx_status,
+	t.tx_status,
 	t.start_date,
 	t.end_date,
 	t.images,
@@ -83,7 +91,6 @@ func ListHandler(c *gin.Context) {
 FROM ucoin.erc721 AS t 
 INNER JOIN ucoin.users AS u ON (u.wallet_addr = t.owner)
 INNER JOIN ucoin.erc20 AS erc20 ON (erc20.address = t.erc20)
-LEFT JOIN ucoin.txs AS txs ON (txs.tx = t.tx)
 %s
 ORDER BY t.updated_at DESC LIMIT %d, %d`, where, page*pageSize, pageSize)
 	if CheckErr(err, c) {
@@ -132,7 +139,7 @@ ORDER BY t.updated_at DESC LIMIT %d, %d`, where, page*pageSize, pageSize)
 			Title:        row.Str(10),
 			Price:        new(big.Int).SetUint64(row.Uint64(11)),
 			Amount:       row.Uint(12),
-			TxStatus:     row.Uint(13),
+			TxStatus:     row.Int(13),
 			StartDate:    row.ForceLocaltime(14).Format(time.RFC3339),
 			EndDate:      row.ForceLocaltime(15).Format(time.RFC3339),
 			Description:  row.Str(18),
@@ -151,16 +158,18 @@ ORDER BY t.updated_at DESC LIMIT %d, %d`, where, page*pageSize, pageSize)
 				erc721.Tags = append(erc721.Tags, tag)
 			}
 		}
-		tokenABI, err := utils.NewNFToken(erc721.Address, Service.Geth)
-		if CheckErr(err, c) {
-			return
+		if erc721.TxStatus == 1 {
+			tokenABI, err := utils.NewNFToken(erc721.Address, Service.Geth)
+			if CheckErr(err, c) {
+				return
+			}
+			task := ProductPoolTask{
+				ABI:     tokenABI,
+				Product: erc721,
+			}
+			wg.Add(1)
+			pool.Serve(task)
 		}
-		task := ProductPoolTask{
-			ABI:     tokenABI,
-			Product: erc721,
-		}
-		wg.Add(1)
-		pool.Serve(task)
 
 		products = append(products, erc721)
 	}

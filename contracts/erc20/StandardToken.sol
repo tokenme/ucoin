@@ -29,14 +29,21 @@ contract StandardToken is ERC20, BasicToken {
     public
     returns (bool)
   {
+    if (msg.sender == _from) {
+      return transfer(_to, _value);
+    }
     require(_to != address(0));
     require(_value <= balances[_from]);
     require(_value <= allowed[_from][msg.sender]);
 
     balances[_from] = balances[_from].sub(_value);
 
-    _decreaseHolders(_from);
-    _increaseHolders(_to);
+    if (balances[_from] == 0 && totalHolders_ > 0) {
+      totalHolders_ = totalHolders_.sub(1);
+    }
+    if (balances[_to] == 0) {
+      totalHolders_ = totalHolders_.add(1);
+    }
 
     balances[_to] = balances[_to].add(_value);
     allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);

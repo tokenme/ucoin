@@ -86,7 +86,7 @@ func CreateHandler(c *gin.Context) {
 		return
 	}
 
-	rows, _, err = db.Query(`SELECT address, name, symbol, decimals, logo FROM ucoin.erc20 WHERE address="%s" AND owner="%s" LIMIT 1`, db.Escape(req.Token), db.Escape(pubKey))
+	rows, _, err = db.Query(`SELECT address, name, symbol, decimals, logo, tx_status FROM ucoin.erc20 WHERE address="%s" AND owner="%s" LIMIT 1`, db.Escape(req.Token), db.Escape(pubKey))
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
@@ -101,17 +101,33 @@ func CreateHandler(c *gin.Context) {
 		Symbol:   row.Str(2),
 		Decimals: row.Uint(3),
 		Logo:     row.Str(4),
+		TxStatus: row.Int(5),
+	}
+
+	if CheckWithCode(erc20Token.TxStatus != 1, TOKEN_UNDER_CONSTRUCTION_ERROR, "token under construct", c) {
+		return
 	}
 
 	transactor := eth.TransactorAccount(privKey)
+	nonce, err := eth.Nonce(c, Service.Geth, Service.Redis.Master, pubKey, eth.UC_CHAIN)
+	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
+		return
+	}
+	transactorOpts := eth.TransactorOptions{
+		Nonce:    nonce,
+		GasLimit: 2100000,
+	}
+	eth.TransactorUpdate(transactor, transactorOpts, c)
 	contractAddress, tx, _, err := utils.DeployNFToken(transactor, Service.Geth, req.Title, erc20Token.Symbol, Config.ERC721Template)
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
 	}
+	eth.NonceIncr(c, Service.Geth, Service.Redis.Master, pubKey, eth.UC_CHAIN)
 	tokenAddress := strings.ToLower(contractAddress.Hex())
 	txHash := tx.Hash()
-	err = Queues[Config.SQS.TxQueue].(*sqs.TxQueue).NewTx(txHash.Hex())
+	err = Queues[Config.SQS.TxQueue].(*sqs.TxQueue).NewTx(txHash.Hex(), "erc721", "tx", "tx_status")
 	if err != nil {
 		raven.CaptureError(err, nil)
 		return

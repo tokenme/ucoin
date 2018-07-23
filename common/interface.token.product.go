@@ -13,7 +13,7 @@ type TokenProduct struct {
 	Token        *Token   `json:"token,omitempty"`
 	Price        *big.Int `json:"price"`
 	Amount       uint     `json:"amount"`
-	TxStatus     uint     `json:"tx_status"`
+	TxStatus     int      `json:"tx_status"`
 	StartDate    string   `json:"start_date"`
 	EndDate      string   `json:"end_date"`
 	Images       []string `json:"images,omitempty"`

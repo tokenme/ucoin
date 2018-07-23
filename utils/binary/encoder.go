@@ -42,7 +42,9 @@ func (enc *Encoder) Encode(i interface{}) {
 func (enc *Encoder) encodeValue(v reflect.Value) {
 	typ := v.Type()
 	encodeFunc := findEncoder(typ)
-	encodeFunc(enc, v)
+	if encodeFunc != nil {
+		encodeFunc(enc, v)
+	}
 }
 
 func (enc *Encoder) grow(n int) {

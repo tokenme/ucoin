@@ -66,14 +66,25 @@ func CreateHandler(c *gin.Context) {
 		return
 	}
 	transactor := eth.TransactorAccount(privKey)
-	contractAddress, tx, _, err := utils.DeployToken(transactor, Service.Geth, req.Name, req.Symbol, req.Decimals, req.TotalSupply, Config.ERC20Template)
+	nonce, err := eth.Nonce(c, Service.Geth, Service.Redis.Master, pubKey, eth.UC_CHAIN)
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
 	}
+	transactorOpts := eth.TransactorOptions{
+		Nonce:    nonce,
+		GasLimit: 2100000,
+	}
+	eth.TransactorUpdate(transactor, transactorOpts, c)
+	contractAddress, tx, _, err := utils.DeployToken(transactor, Service.Geth, req.Name, req.Symbol, req.Decimals, req.TotalSupply)
+	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
+		return
+	}
+	eth.NonceIncr(c, Service.Geth, Service.Redis.Master, pubKey, eth.UC_CHAIN)
 	tokenAddress := strings.ToLower(contractAddress.Hex())
 	txHash := tx.Hash()
-	err = Queues[Config.SQS.TxQueue].(*sqs.TxQueue).NewTx(txHash.Hex())
+	err = Queues[Config.SQS.TxQueue].(*sqs.TxQueue).NewTx(txHash.Hex(), "erc20", "tx", "tx_status")
 	if err != nil {
 		raven.CaptureError(err, nil)
 		return

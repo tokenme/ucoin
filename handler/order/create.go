@@ -78,6 +78,7 @@ func CreateHandler(c *gin.Context) {
 	t.tags,
 	t.summary,
 	t.online_status,
+	t.tx_status,
 	u.wallet,
 	u.wallet_salt
 FROM ucoin.erc721 AS t 
@@ -118,6 +119,10 @@ WHERE t.address = '%s' AND t.owner != '%s' LIMIT 1`, db.Escape(req.Address), db.
 		Description:  row.Str(17),
 		Token:        token,
 		OnlineStatus: row.Int(18),
+		TxStatus:     row.Int(19),
+	}
+	if CheckWithCode(erc721.TxStatus != 1, PRODUCT_UNDER_CONSTRUCTION_ERROR, "product under construct", c) {
+		return
 	}
 	imgArr := strings.Split(row.Str(15), ",")
 	for _, img := range imgArr {
@@ -132,8 +137,8 @@ WHERE t.address = '%s' AND t.owner != '%s' LIMIT 1`, db.Escape(req.Address), db.
 		}
 	}
 
-	walletEncrypted = row.Str(19)
-	walletSalt = row.Str(20)
+	walletEncrypted = row.Str(20)
+	walletSalt = row.Str(21)
 
 	erc721PrivKey, err := commonutils.AddressDecrypt(walletEncrypted, walletSalt, Config.TokenSalt)
 	if CheckErr(err, c) {
@@ -170,18 +175,27 @@ WHERE t.address = '%s' AND t.owner != '%s' LIMIT 1`, db.Escape(req.Address), db.
 	}
 	orderId := ret.InsertId()
 	erc20Transactor := eth.TransactorAccount(privKey)
+	nonce, err := eth.Nonce(c, Service.Geth, Service.Redis.Master, pubKey, eth.UC_CHAIN)
+	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
+		return
+	}
 	erc20TransactorOpts := eth.TransactorOptions{
-		GasLimit: 540000,
+		Nonce:    nonce,
+		GasLimit: 2100000,
 	}
 	eth.TransactorUpdate(erc20Transactor, erc20TransactorOpts, c)
 	tx, err := utils.Transfer(erc20Token, erc20Transactor, erc721.Owner, erc721.Price)
 	if CheckErr(err, c) {
 		return
 	}
+	eth.NonceIncr(c, Service.Geth, Service.Redis.Master, pubKey, eth.UC_CHAIN)
 	erc20Tx := tx.Hash().Hex()
 	erc721Transactor := eth.TransactorAccount(erc721PrivKey)
+	nonce, err = eth.Nonce(c, Service.Geth, Service.Redis.Master, erc721.Owner, eth.UC_CHAIN)
 	erc721TransactorOpts := eth.TransactorOptions{
-		GasLimit: 540000,
+		Nonce:    nonce,
+		GasLimit: 2100000,
 	}
 	if privKey == erc721PrivKey {
 		nonce, err := eth.PendingNonce(Service.Geth, c, erc721.Owner)
@@ -195,25 +209,26 @@ WHERE t.address = '%s' AND t.owner != '%s' LIMIT 1`, db.Escape(req.Address), db.
 	if CheckErr(err, c) {
 		return
 	}
+	eth.NonceIncr(c, Service.Geth, Service.Redis.Master, erc721.Owner, eth.UC_CHAIN)
 	erc721Tx := tx.Hash().Hex()
 	_, _, err = db.Query(`UPDATE ucoin.erc721_orders SET token_id=%d, erc721_tx='%s', erc20_tx='%s' WHERE id=%d`, orderId, db.Escape(erc721Tx), db.Escape(erc20Tx), orderId)
 	if CheckErr(err, c) {
 		return
 	}
-	err = Queues[Config.SQS.TxQueue].(*sqs.TxQueue).NewTx(erc20Tx)
+	err = Queues[Config.SQS.TxQueue].(*sqs.TxQueue).NewTx(erc20Tx, "erc721_orders", "erc20_tx", "erc20_tx_status")
 	if err != nil {
 		raven.CaptureError(err, nil)
 		return
 	}
-	err = Queues[Config.SQS.TxQueue].(*sqs.TxQueue).NewTx(erc721Tx)
+	err = Queues[Config.SQS.TxQueue].(*sqs.TxQueue).NewTx(erc721Tx, "erc721_orders", "erc721_tx", "erc721_tx_status")
 	if err != nil {
 		raven.CaptureError(err, nil)
 		return
 	}
 	order := common.Order{
 		TokenId:    orderId,
-		Buyer:      pubKey,
-		Seller:     erc721.Owner,
+		Buyer:      user,
+		Seller:     common.User{Wallet: erc721.Owner},
 		Product:    erc721,
 		Price:      erc721.Price,
 		InsertedAt: time.Now().Format(time.RFC3339),
@@ -221,21 +236,21 @@ WHERE t.address = '%s' AND t.owner != '%s' LIMIT 1`, db.Escape(req.Address), db.
 		Tx:         erc721Tx,
 	}
 
-	balance, err := eth.BalanceOf(Service.Geth, c, order.Buyer)
+	balance, err := eth.BalanceOf(Service.Geth, c, order.Buyer.Wallet)
 	if err != nil {
 		raven.CaptureError(err, nil)
 	} else if balance.Cmp(eth.MinGas) == -1 {
-		err = Queues[Config.SQS.GasQueue].(*sqs.GasQueue).Deposit(order.Buyer, eth.MinGas.Uint64())
+		err = Queues[Config.SQS.GasQueue].(*sqs.GasQueue).Deposit(order.Buyer.Wallet, eth.MinGas.Uint64())
 		if err != nil {
 			raven.CaptureError(err, nil)
 		}
 	}
 
-	balance, err = eth.BalanceOf(Service.Geth, c, order.Seller)
+	balance, err = eth.BalanceOf(Service.Geth, c, order.Seller.Wallet)
 	if err != nil {
 		raven.CaptureError(err, nil)
 	} else if balance.Cmp(eth.MinGas) == -1 {
-		err = Queues[Config.SQS.GasQueue].(*sqs.GasQueue).Deposit(order.Seller, eth.MinGas.Uint64())
+		err = Queues[Config.SQS.GasQueue].(*sqs.GasQueue).Deposit(order.Seller.Wallet, eth.MinGas.Uint64())
 		if err != nil {
 			raven.CaptureError(err, nil)
 		}

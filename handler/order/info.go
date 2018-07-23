@@ -42,6 +42,8 @@ func InfoHandler(c *gin.Context) {
     erc721.address, 
     erc721.owner, 
     erc721.name, 
+    erc721.price,
+    erc721.amount,
     erc721.start_date,
     erc721.end_date,
     o.buyer,
@@ -51,10 +53,16 @@ func InfoHandler(c *gin.Context) {
     o.erc721_tx,
     o.inserted_at,
     o.updated_at,
-    IFNULL(txs.status, 2) AS tx_status
+    IFNULL(txs.status, 2) AS tx_status,
+    buyer.nickname,
+    buyer.avatar,
+    seller.nickname,
+    seller.avatar
 FROM ucoin.erc721_orders AS o
 INNER JOIN ucoin.erc721 AS erc721 ON (erc721.address = o.erc721)
 INNER JOIN ucoin.erc20 AS erc20 ON (erc20.address = o.erc20)
+INNER JOIN ucoin.users AS buyer ON (buyer.wallet_addr = o.buyer)
+INNER JOIN ucoin.users AS seller ON (seller.wallet_addr = o.seller)
 LEFT JOIN ucoin.txs AS txs ON (txs.tx = o.erc721_tx)
 WHERE o.erc721='%s' AND o.token_id=%d AND o.buyer='%s' OR o.seller='%s'
 LIMIT 1`, db.Escape(req.Product), req.Id, db.Escape(user.Wallet), db.Escape(user.Wallet))
@@ -86,22 +94,37 @@ LIMIT 1`, db.Escape(req.Product), req.Id, db.Escape(user.Wallet), db.Escape(user
 		Address:   row.Str(8),
 		Owner:     row.Str(9),
 		Title:     row.Str(10),
-		StartDate: row.ForceLocaltime(11).Format(time.RFC3339),
-		EndDate:   row.ForceLocaltime(12).Format(time.RFC3339),
+		Price:     new(big.Int).SetUint64(row.Uint64(11)),
+		Amount:    row.Uint(12),
+		StartDate: row.ForceLocaltime(13).Format(time.RFC3339),
+		EndDate:   row.ForceLocaltime(14).Format(time.RFC3339),
 		Token:     token,
 	}
+	buyer := common.User{
+		Wallet: row.Str(15),
+		Nick:   row.Str(23),
+		Avatar: row.Str(24),
+	}
+	buyer.ShowName = buyer.GetShowName()
+	seller := common.User{
+		Wallet: row.Str(16),
+		Nick:   row.Str(25),
+		Avatar: row.Str(26),
+	}
+	seller.ShowName = seller.GetShowName()
 	order := common.Order{
-		TokenId:         row.Uint64(15),
-		Buyer:           row.Str(13),
-		Seller:          row.Str(14),
-		Price:           new(big.Int).SetUint64(row.Uint64(16)),
-		Tx:              row.Str(17),
-		InsertedAt:      row.ForceLocaltime(18).Format(time.RFC3339),
-		UpdatedAt:       row.ForceLocaltime(19).Format(time.RFC3339),
-		ProductTxStatus: row.Uint(20),
+		TokenId:         row.Uint64(17),
+		Buyer:           buyer,
+		Seller:          seller,
+		Price:           new(big.Int).SetUint64(row.Uint64(18)),
+		Tx:              row.Str(19),
+		InsertedAt:      row.ForceLocaltime(20).Format(time.RFC3339),
+		UpdatedAt:       row.ForceLocaltime(21).Format(time.RFC3339),
+		ProductTxStatus: row.Uint(22),
 		Product:         erc721,
 	}
-	qrcode, err := order.GetQrcode([]byte(Config.LinkSalt))
+	proto := common.NewOrderProto(order.TokenId, order.Product.Address)
+	qrcode, err := proto.String(Config.QRCodeUrl, []byte(Config.LinkSalt))
 	if CheckErr(err, c) {
 		return
 	}

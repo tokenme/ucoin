@@ -4,6 +4,7 @@ type Config struct {
 	AppName             string       `default:"ucoin"`
 	BaseUrl             string       `default:"https://ucoin.io"`
 	CDNUrl              string       `default:"https://cdn.ucoin.io/"`
+	QRCodeUrl           string       `default:"qr.ucoin.io"`
 	Port                int          `default:"8008"`
 	Geth                string       `default:"geth.xibao100.com"`
 	StaticPath          string       `required:"true"`
@@ -77,5 +78,6 @@ type QiniuConfig struct {
 	TokenCover            string `required:"true"`
 	TokenProductImagePath string `required:"true"`
 	TokenTaskImagePath    string `required:"true"`
+	TokenTaskEvidencePath string `required:"true"`
 	Domain                string `required:"true"`
 }

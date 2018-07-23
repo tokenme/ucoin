@@ -26,24 +26,10 @@ contract BasicToken is ERC20Basic {
   }
 
   /**
-  * @dev total number of token holders in existence
+  * @dev total number of token holders
   */
   function totalHolders() public view returns (uint256) {
     return totalHolders_;
-  }
-
-  function _increaseHolders(address _addr) internal {
-    if (balances[_addr] > 0) {
-      return;
-    }
-    totalHolders_ = totalHolders_.add(1);
-  }
-
-  function _decreaseHolders(address _addr) internal {
-    if (balances[_addr] > 0 && totalHolders_ > 0) {
-      return;
-    }
-    totalHolders_ = totalHolders_.sub(1);
   }
 
   /**
@@ -63,14 +49,14 @@ contract BasicToken is ERC20Basic {
     require(_value <= balances[msg.sender]);
 
     balances[msg.sender] = balances[msg.sender].sub(_value);
-
-    _decreaseHolders(msg.sender);
-    _increaseHolders(_to);
-
+    if (balances[msg.sender] == 0 && totalHolders_ > 0) {
+      totalHolders_ = totalHolders_.sub(1);
+    }
+    if (balances[_to] == 0) {
+      totalHolders_ = totalHolders_.add(1);
+    }
     balances[_to] = balances[_to].add(_value);
-
     totalTransfers_ = totalTransfers_.add(1);
-
     emit Transfer(msg.sender, _to, _value);
     return true;
   }

@@ -46,7 +46,8 @@ func InfoHandler(c *gin.Context) {
 	t.images,
 	t.tags,
 	t.summary,
-	t.online_status
+	t.online_status,
+	t.tx_status
 FROM ucoin.erc721 AS t 
 INNER JOIN ucoin.users AS u ON (u.wallet_addr = t.owner)
 INNER JOIN ucoin.erc20 AS erc20 ON (erc20.address = t.erc20)
@@ -85,6 +86,7 @@ WHERE t.address = '%s'`, db.Escape(req.Address))
 		Description:  row.Str(17),
 		Token:        token,
 		OnlineStatus: row.Int(18),
+		TxStatus:     row.Int(19),
 	}
 	imgArr := strings.Split(row.Str(15), ",")
 	for _, img := range imgArr {
@@ -98,14 +100,16 @@ WHERE t.address = '%s'`, db.Escape(req.Address))
 			erc721.Tags = append(erc721.Tags, tag)
 		}
 	}
-	tokenABI, err := utils.NewNFToken(erc721.Address, Service.Geth)
-	if CheckErr(err, c) {
-		return
+	if erc721.TxStatus == 1 {
+		tokenABI, err := utils.NewNFToken(erc721.Address, Service.Geth)
+		if CheckErr(err, c) {
+			return
+		}
+		totalSupply, err := tokenABI.TotalSupply(nil)
+		if err != nil {
+			log.Error(err.Error())
+		}
+		erc721.TotalSupply = totalSupply
 	}
-	totalSupply, err := tokenABI.TotalSupply(nil)
-	if err != nil {
-		log.Error(err.Error())
-	}
-	erc721.TotalSupply = totalSupply
 	c.JSON(http.StatusOK, erc721)
 }

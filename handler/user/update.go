@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
+	"github.com/mkideal/log"
 	"github.com/nu7hatch/gouuid"
 	"github.com/tokenme/ucoin/common"
 	. "github.com/tokenme/ucoin/handler"
@@ -14,18 +15,20 @@ import (
 )
 
 type UpdateRequest struct {
-	Mobile      string         `form:"mobile" json:"mobile"`
-	CountryCode uint           `form:"country_code" json:"country_code"`
-	VerifyCode  string         `form:"verify_code" json:"verify_code"`
-	Password    string         `form:"passwd" json:"passwd"`
-	RePassword  string         `form:"repasswd" json:"repasswd"`
-	Realname    string         `form:"realname" json:"realname"`
-	Wechat      *WechatRequest `form:"wechat" json:"wechat"`
+	Mobile        string         `form:"mobile" json:"mobile"`
+	CountryCode   uint           `form:"country_code" json:"country_code"`
+	VerifyCode    string         `form:"verify_code" json:"verify_code"`
+	Password      string         `form:"passwd" json:"passwd"`
+	RePassword    string         `form:"repasswd" json:"repasswd"`
+	Realname      string         `form:"realname" json:"realname"`
+	PaymentPasswd string         `form:"payment_passwd" json:"payment_passwd"`
+	Wechat        *WechatRequest `form:"wechat" json:"wechat"`
 }
 
 func UpdateHandler(c *gin.Context) {
 	var req UpdateRequest
 	if CheckErr(c.Bind(&req), c) {
+		log.Error("UNBINED")
 		return
 	}
 	userContext, exists := c.Get("USER")
@@ -86,6 +89,9 @@ func UpdateHandler(c *gin.Context) {
 		}
 		unionId = rows[0].Str(0)
 		updateFields = append(updateFields, fmt.Sprintf("wx_unionid='%s', wx_nick='%s', wx_avatar='%s', wx_gender=%d, wx_city='%s', wx_province='%s', wx_country='%s', wx_language='%s'", db.Escape(unionId), db.Escape(req.Wechat.Nick), db.Escape(req.Wechat.Avatar), req.Wechat.Gender, db.Escape(req.Wechat.City), db.Escape(req.Wechat.Province), db.Escape(req.Wechat.Country), db.Escape(req.Wechat.Language)))
+	} else if req.PaymentPasswd != "" {
+		paymentPasswd := utils.Sha1(fmt.Sprintf("%s%s%s", user.Salt, req.PaymentPasswd, user.Salt))
+		updateFields = append(updateFields, fmt.Sprintf("payment_passwd='%s'", db.Escape(paymentPasswd)))
 	}
 	if mobile != "" && unionId != "" {
 		if user.Mobile == "" && user.Wechat != nil && user.Wechat.UnionId != unionId {
@@ -125,6 +131,7 @@ func UpdateHandler(c *gin.Context) {
 
 	_, _, err := db.Query(`UPDATE ucoin.users SET %s WHERE id=%d LIMIT 1`, strings.Join(updateFields, ","), user.Id)
 	if CheckErr(err, c) {
+		log.Error(err.Error())
 		raven.CaptureError(err, nil)
 		return
 	}

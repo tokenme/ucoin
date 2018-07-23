@@ -44,7 +44,9 @@ func (dec *Decoder) Decode(i interface{}) {
 func (enc *Decoder) decodeValue(v reflect.Value) {
 	typ := v.Type()
 	decodeFunc := findDecoder(typ)
-	decodeFunc(enc, v)
+	if decodeFunc != nil {
+		decodeFunc(enc, v)
+	}
 }
 
 func readUInt32(dec *Decoder) (a uint32) {

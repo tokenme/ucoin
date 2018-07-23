@@ -14,8 +14,11 @@ import (
 )
 
 type TxMessage struct {
-	Type MsgType `codec:"type"`
-	Tx   string  `codec:"tx"`
+	Type        MsgType `codec:"type"`
+	Tx          string  `codec:"tx"`
+	Table       string  `codec:"table"`
+	TxField     string  `codec:"tx_field"`
+	StatusField string  `codec:"status_field"`
 }
 
 func (this TxMessage) String() string {
@@ -27,8 +30,8 @@ type TxQueue struct {
 	config    common.Config
 	queue     msgqueue.Queue
 	processor *msgqueue.Processor
-	reSendCh  chan string
-	txCh      chan string
+	reSendCh  chan TxMessage
+	txCh      chan TxMessage
 	exitCh    chan struct{}
 	canStopCh chan struct{}
 }
@@ -37,8 +40,8 @@ func NewTxQueue(m msgqueue.Manager, service *common.Service, config common.Confi
 	queue := &TxQueue{
 		service:   service,
 		config:    config,
-		reSendCh:  make(chan string, 1000),
-		txCh:      make(chan string, 1000),
+		reSendCh:  make(chan TxMessage, 1000),
+		txCh:      make(chan TxMessage, 1000),
 		exitCh:    make(chan struct{}, 1),
 		canStopCh: make(chan struct{}, 1),
 	}
@@ -58,33 +61,43 @@ func (this *TxQueue) Start() {
 	var wg sync.WaitGroup
 	pool, _ := ants.NewPoolWithFunc(10000, func(tx interface{}) error {
 		defer wg.Done()
-		txHex := tx.(string)
+		msg := tx.(TxMessage)
+		txHex := msg.Tx
 		log.Info("Checking New Tx Receipt:%s", txHex)
 		receipt, err := utils.TransactionReceipt(this.service.Geth, ctx, txHex)
 		if err != nil {
 			log.Error(err.Error())
-			this.reSendCh <- txHex
+			this.reSendCh <- msg
 			return err
 		}
 		if receipt == nil {
-			this.reSendCh <- txHex
+			this.reSendCh <- msg
 			return nil
 		}
 		db := this.service.Db
 		_, _, err = db.Query(`INSERT INTO ucoin.txs (tx, status) VALUES ('%s', %d)`, db.Escape(txHex), receipt.Status)
 		if err != nil {
 			log.Error(err.Error())
-			this.reSendCh <- txHex
+			this.reSendCh <- msg
 			return err
 		}
-		log.Info("Updated Tx Receipt:%s, Status:%d", txHex, receipt.Status)
+		if msg.Table != "" {
+			_, _, err = db.Query(`UPDATE ucoin.%s SET %s=%d WHERE %s='%s'`, msg.Table, msg.StatusField, receipt.Status, msg.TxField, db.Escape(txHex))
+			if err != nil {
+				log.Error(err.Error())
+				this.reSendCh <- msg
+				return err
+			}
+		}
+		log.Info("Updated Tx Receipt:%s, Status:%d, table:%s, field:%s, statusField:%s", txHex, receipt.Status, msg.Table, msg.TxField, msg.StatusField)
 		return nil
 	})
 
 	delayPool, _ := ants.NewPoolWithFunc(10000, func(tx interface{}) error {
 		defer wg.Done()
 		time.Sleep(10 * time.Second)
-		return this.NewTx(tx.(string))
+		msg := tx.(TxMessage)
+		return this.NewTx(msg.Tx, msg.Table, msg.TxField, msg.StatusField)
 	})
 	shouldStop := false
 	for !shouldStop {
@@ -110,14 +123,14 @@ func (this *TxQueue) Stop() {
 	<-this.canStopCh
 }
 
-func (this *TxQueue) NewTx(tx string) error {
-	return this.queue.Call(TxMessage{Type: TransactionMsg, Tx: tx})
+func (this *TxQueue) NewTx(tx string, table string, txField string, statusField string) error {
+	return this.queue.Call(TxMessage{Type: TransactionMsg, Tx: tx, Table: table, TxField: txField, StatusField: statusField})
 }
 
 func (this *TxQueue) Handler(msg TxMessage) error {
 	switch msg.Type {
 	case TransactionMsg:
-		this.txCh <- msg.Tx
+		this.txCh <- msg
 	}
 	return nil
 }

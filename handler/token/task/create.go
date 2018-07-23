@@ -9,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/nu7hatch/gouuid"
 	//"github.com/mkideal/log"
-	"github.com/tokenme/ucoin/coins/eth"
 	"github.com/tokenme/ucoin/common"
 	. "github.com/tokenme/ucoin/handler"
 	"github.com/tokenme/ucoin/tools/qiniu"
@@ -62,31 +61,8 @@ func CreateHandler(c *gin.Context) {
 	}
 
 	db := Service.Db
-	rows, _, err := db.Query(`SELECT wallet, wallet_salt FROM ucoin.users WHERE id=%d LIMIT 1`, user.Id)
-	if CheckErr(err, c) {
-		raven.CaptureError(err, nil)
-		return
-	}
-	if CheckWithCode(len(rows) == 0, UNAUTHORIZED_ERROR, "user not exists", c) {
-		return
-	}
-	row := rows[0]
-	walletEncrypted := row.Str(0)
-	walletSalt := row.Str(1)
 
-	privKey, err := commonutils.AddressDecrypt(walletEncrypted, walletSalt, Config.TokenSalt)
-	if CheckErr(err, c) {
-		raven.CaptureError(err, nil)
-		return
-	}
-
-	pubKey, err := eth.AddressFromHexPrivateKey(privKey)
-	if CheckErr(err, c) {
-		raven.CaptureError(err, nil)
-		return
-	}
-
-	rows, _, err = db.Query(`SELECT address, name, symbol, decimals, logo FROM ucoin.erc20 WHERE address="%s" AND owner="%s" LIMIT 1`, db.Escape(req.Token), db.Escape(pubKey))
+	rows, _, err := db.Query(`SELECT address, name, symbol, decimals, logo, tx_status FROM ucoin.erc20 WHERE address="%s" AND owner="%s" LIMIT 1`, db.Escape(req.Token), db.Escape(user.Wallet))
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
@@ -94,14 +70,20 @@ func CreateHandler(c *gin.Context) {
 	if CheckWithCode(len(rows) == 0, NOTFOUND_ERROR, "not found", c) {
 		return
 	}
-	row = rows[0]
+	row := rows[0]
 	erc20Token := &common.Token{
 		Address:  row.Str(0),
 		Name:     row.Str(1),
 		Symbol:   row.Str(2),
 		Decimals: row.Uint(3),
 		Logo:     row.Str(4),
+		TxStatus: row.Int(5),
 	}
+
+	if CheckWithCode(erc20Token.TxStatus != 1, TOKEN_UNDER_CONSTRUCTION_ERROR, "token under construct", c) {
+		return
+	}
+
 	var imageURLs []string
 	if req.Images == "" {
 		formData := c.Request.MultipartForm
@@ -170,7 +152,7 @@ func CreateHandler(c *gin.Context) {
 	if req.NeedEvidence == 1 {
 		needEvidence = 1
 	}
-	_, ret, err := db.Query(`INSERT INTO ucoin.tasks (owner, name, summary, erc20, bonus, amount, start_date, end_date, images, tags, need_evidence) VALUES ('%s', '%s', '%s', '%s', %d, %d, '%s', '%s', %s, %s, %d)`, db.Escape(pubKey), db.Escape(req.Title), db.Escape(req.Description), db.Escape(erc20Token.Address), req.Bonus, req.Amount, db.Escape(startTimeStr), db.Escape(endTimeStr), imagesStr, tagsStr, needEvidence)
+	_, ret, err := db.Query(`INSERT INTO ucoin.tasks (owner, name, summary, erc20, bonus, amount, start_date, end_date, images, tags, need_evidence) VALUES ('%s', '%s', '%s', '%s', %d, %d, '%s', '%s', %s, %s, %d)`, db.Escape(user.Wallet), db.Escape(req.Title), db.Escape(req.Description), db.Escape(erc20Token.Address), req.Bonus, req.Amount, db.Escape(startTimeStr), db.Escape(endTimeStr), imagesStr, tagsStr, needEvidence)
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
@@ -179,7 +161,7 @@ func CreateHandler(c *gin.Context) {
 
 	tokenTask := common.TokenTask{
 		Id:           taskId,
-		Owner:        pubKey,
+		Owner:        user.Wallet,
 		Title:        req.Title,
 		Token:        erc20Token,
 		Bonus:        new(big.Int).SetUint64(req.Bonus),

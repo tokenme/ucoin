@@ -26,7 +26,7 @@ func TokenTaskHandler(c *gin.Context) {
 		return
 	}
 	user := userContext.(common.User)
-	var req TokenProductRequest
+	var req TokenTaskRequest
 	if CheckErr(c.Bind(&req), c) {
 		return
 	}

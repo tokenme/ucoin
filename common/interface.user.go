@@ -18,6 +18,7 @@ type User struct {
 	Password    string      `json:"-"`
 	Wallet      string      `json:"wallet"`
 	WalletPK    string      `json:"-"`
+	CanPay      uint        `json:"can_pay,omitempty"`
 }
 
 type WechatUser struct {

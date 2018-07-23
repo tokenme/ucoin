@@ -8,8 +8,8 @@ import (
 
 type Order struct {
 	TokenId         uint64       `json:"token_id"`
-	Buyer           string       `json:"buyer"`
-	Seller          string       `json:"seller"`
+	Buyer           User         `json:"buyer"`
+	Seller          User         `json:"seller"`
 	Product         TokenProduct `json:"product"`
 	Price           *big.Int     `json:"price"`
 	Tx              string       `json:"tx"`
@@ -17,42 +17,46 @@ type Order struct {
 	ProductTxStatus uint         `json:"product_tx_status,omitempty"`
 	InsertedAt      string       `json:"inserted_at"`
 	UpdatedAt       string       `json:"udpated_at"`
-	Qrcode          *Qrcode      `json:"qrcode,omitempty"`
+	Qrcode          string       `json:"qrcode,omitempty"`
 }
 
 type OrderProto struct {
+	Qrcode
 	TokenId uint64 `json:"token_id"`
 	Product string `json:"product"`
 }
 
-func (this Order) GetQrcode(key []byte) (*Qrcode, error) {
-	proto := OrderProto{
-		TokenId: this.TokenId,
-		Product: this.Product.Address,
+func NewOrderProto(tokenId uint64, product string) OrderProto {
+	return OrderProto{
+		Qrcode: Qrcode{
+			Method: QRCODE_ORDER_INFO,
+		},
+		TokenId: tokenId,
+		Product: product,
 	}
-	data, err := EncodeOrder(key, proto)
-	if err != nil {
-		return nil, err
-	}
-	return &Qrcode{
-		Method: "/order/info",
-		Data:   data,
-	}, nil
 }
 
-func EncodeOrder(key []byte, proto OrderProto) (string, error) {
+func (this OrderProto) String(host string, key []byte) (string, error) {
+	data, err := this.Encode(key)
+	if err != nil {
+		return "", err
+	}
+	return this.Uri(host, data), nil
+}
+
+func (this OrderProto) Encode(key []byte) (string, error) {
 	enc := binary.NewEncoder()
-	enc.Encode(proto)
+	enc.Encode(this)
 	return utils.AESEncryptBytes(key, enc.Buffer())
 }
 
-func DecodeOrder(key []byte, cryptoText string) (proto OrderProto, err error) {
+func (this *OrderProto) Decode(key []byte, cryptoText string) error {
 	data, err := utils.AESDecryptBytes(key, cryptoText)
 	if err != nil {
-		return proto, err
+		return err
 	}
 	dec := binary.NewDecoder()
 	dec.SetBuffer(data)
-	dec.Decode(&proto)
-	return proto, nil
+	dec.Decode(this)
+	return nil
 }

@@ -24,7 +24,9 @@ func NewRouter(staticPath string) *gin.Engine {
 	tokenRouter(r)
 	tokenProductRouter(r)
 	tokenTaskRouter(r)
+	tokenTaskEvidenceRouter(r)
 	orderRouter(r)
 	qiniuRouter(r)
+	qrcodeRouter(r)
 	return r
 }

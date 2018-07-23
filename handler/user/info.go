@@ -28,7 +28,8 @@ func InfoGetHandler(c *gin.Context) {
                 u.wallet_addr,
                 u.wx_unionid,
                 u.wx_nick,
-                u.wx_avatar
+                u.wx_avatar,
+                u.payment_passwd
             FROM ucoin.users AS u
             LEFT JOIN ucoin.wx_oauth AS wx ON (wx.union_id=u.wx_unionid)
             WHERE u.id = %d
@@ -61,6 +62,10 @@ func InfoGetHandler(c *gin.Context) {
 				Nick:    row.Str(10),
 				Avatar:  row.Str(11),
 			}
+		}
+		paymentPasswd := row.Str(12)
+		if paymentPasswd != "" {
+			user.CanPay = 1
 		}
 		user.ShowName = user.GetShowName()
 		user.Avatar = user.GetAvatar(Config.CDNUrl)

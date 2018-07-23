@@ -17,9 +17,9 @@ type Token struct {
 	TotalSupply       *big.Int `json:"total_supply,omitempty"`
 	TotalTransfers    *big.Int `json:"total_transfers,omitempty"`
 	TotalHolders      *big.Int `json:"total_holders,omitempty"`
-	CirculatingSupply *big.Int `json:"curculating_supply,omitempty"`
+	CirculatingSupply *big.Int `json:"circulating_supply,omitempty"`
 	Balance           *big.Int `json:"balance,omitempty"`
-	TxStatus          uint     `json:"tx_status"`
+	TxStatus          int      `json:"tx_status"`
 	Logo              string   `json:"logo,omitempty"`
 	Cover             string   `json:"cover,omitempty"`
 	Description       string   `json:"desc,omitempty"`
