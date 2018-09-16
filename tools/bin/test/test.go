@@ -5,10 +5,10 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	//"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/tokenme/ucoin/coins/eth"
 	"github.com/tokenme/ucoin/coins/eth/utils"
-	//commonutils "github.com/tokenme/ucoin/utils"
+	commonutils "github.com/tokenme/ucoin/utils"
 	"log"
 	"math/big"
 )
@@ -22,15 +22,35 @@ func main() {
 		log.Fatalln(err)
 	}
 	log.Println("Wallet: ", pubKey)
+	//agentPrivKey := "161595354e033f54c86047ead669e45833a537dd972142e269ca5cf52d7fd9f3"
+	agentPubKey := "0xec97a4010e2b3cf9c82033ac20fa985d31265fc2"
 	transactor := eth.TransactorAccount(privKey)
+	if false {
+		transactor.Value = new(big.Int).Mul(big.NewInt(1000), big.NewInt(params.Ether))
+		tx, err := eth.Transfer(transactor, geth, ctx, agentPubKey)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		txHash := tx.Hash()
+		log.Println("TX: ", txHash.Hex())
+	}
+	poolPrivKey, err := commonutils.AddressDecrypt("mQL1yxONjwBvms6n2wGNxATMIx0WdEpMklw528joC-NNzcYmJkLf72UWFPg2RGxDBYW4Da5NT8_4vZDFpe5-oWLPzhZiNyzw2g5mYnpPVok=", "ec548c11b663a2a548ec36eb6f45bca3847d2163", "RdH7aJSLWnx3i873EekoXksHa8G70OhEoROjYZPv3GZpLdNnPYcns9_YTptJT4heNegrnUpp3c8XtdrDIp4feFS8plymNgLiBMGZAPZxlpA=")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	poolPubKey, err := eth.AddressFromHexPrivateKey(poolPrivKey)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Println("Pool Wallet: ", poolPubKey)
 	/*err = eth.TransactorUpdateWithEstimation(transactor, geth, ctx)
 	  if err != nil {
 	      log.Fatalln(err)
 	  }
 	  transactor.GasLimit = 540000*/
-	tokenAddress := "0xD4de8684752B1D6bAEd3Ac97e4a808007d1b8134"
+	tokenAddress := "0xa28ED02E990B1632Da50BCA8064c549133Fc6417"
 	if false {
-		contractAddress, tx, _, err := utils.DeployToken(transactor, geth, "UCoin", "UC", 9, 1000000000)
+		contractAddress, tx, _, err := utils.DeployToken(transactor, geth, "TimeBankCoin", "TBC", 9, 1000000000)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -48,7 +68,7 @@ func main() {
 		return
 	}
 	if false {
-		contractAddress, tx, _, err := utils.DeployNFToken(transactor, geth, "UCNF Test", "UCNF", "/opt/go/src/github.com/tokenme/ucoin/templates/contracts/erc721/*")
+		contractAddress, tx, _, err := utils.DeployNFToken(transactor, geth, "UCNF Test", "UCNF")
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -62,12 +82,14 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	if true {
-		name, symbol, decimals, initialSupply, totalSupply, totalHolders, circulatingSupply, balance, err := utils.TokenMeta(token, "")
+	if false {
+		name, symbol, decimals, initialSupply, totalSupply, totalTransfers, totalHolders, circulatingSupply, balance, err := utils.TokenMeta(token, poolPubKey)
 		if err != nil {
 			log.Fatalln(err)
 		}
-		log.Println("name: ", name, ", symbol: ", symbol, ", decimals: ", decimals, ", initialSupply: ", initialSupply.Uint64(), ", totalSupply: ", totalSupply.Uint64(), ", totalHolders: ", totalHolders, ", circulatingSupply: ", circulatingSupply.Uint64(), "balance: ", balance.Uint64())
+		log.Println("name: ", name, ", symbol: ", symbol, ", decimals: ", decimals, ", initialSupply: ", initialSupply.Uint64(), ", totalSupply: ", totalSupply.Uint64(), ", totalTransfers: ", totalTransfers, ", totalHolders: ", totalHolders, ", circulatingSupply: ", circulatingSupply.Uint64(), "balance: ", balance.Uint64())
+		totalTransfers, _ = token.TotalTransfers(nil)
+		log.Println("TotalTransfers: ", totalTransfers)
 	}
 
 	if false {
@@ -99,7 +121,7 @@ func main() {
 	}
 
 	if false {
-		balance, err := utils.TokenBalanceOf(token, pubKey)
+		balance, err := utils.TokenBalanceOf(token, poolPubKey)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -110,8 +132,9 @@ func main() {
 			GasLimit: 540000,
 		}
 		eth.TransactorUpdate(transactor, transactorOpts, ctx)
-		tx, err := token.TransferFrom(transactor, common.HexToAddress(pubKey), common.HexToAddress("0xf6b31e57df96dcd0e63da90623fa61434abf2202f3d44fca35e1d2c5d79ee5dd"), big.NewInt(10000))
-		//tx, err := token.Transfer(transactor, common.HexToAddress("0xdd9dda410b7a9d03c2beedfbe89ef975deb41da8"), big.NewInt(10000))
+		//tx, err := token.TransferFrom(transactor, common.HexToAddress(pubKey), common.HexToAddress("0xf6b31e57df96dcd0e63da90623fa61434abf2202f3d44fca35e1d2c5d79ee5dd"), big.NewInt(10000))
+		amount := new(big.Int).Mul(big.NewInt(1000000), big.NewInt(params.Shannon))
+		tx, err := token.Transfer(transactor, common.HexToAddress(poolPubKey), amount)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -120,11 +143,37 @@ func main() {
 		return
 	}
 
-	balance, err := utils.TokenBalanceOf(token, "0xdd9dda410b7a9d03c2beedfbe89ef975deb41da8")
-	if err != nil {
-		log.Fatalln(err)
+	if false {
+		transactorOpts := eth.TransactorOptions{
+			GasLimit: 540000,
+		}
+		eth.TransactorUpdate(transactor, transactorOpts, ctx)
+		tx, err := token.AddAgent(transactor, common.HexToAddress(agentPubKey))
+		if err != nil {
+			log.Fatalln(err)
+		}
+		txHash := tx.Hash()
+		log.Println("TX: ", txHash.Hex())
+		return
 	}
-	log.Println("balance: ", balance)
+
+	if false {
+		transactorPool := eth.TransactorAccount(poolPrivKey)
+		transactorOpts := eth.TransactorOptions{
+			GasLimit: 540000,
+		}
+		eth.TransactorUpdate(transactorPool, transactorOpts, ctx)
+		//tx, err := token.TransferFrom(transactor, common.HexToAddress(pubKey), common.HexToAddress("0xf6b31e57df96dcd0e63da90623fa61434abf2202f3d44fca35e1d2c5d79ee5dd"), big.NewInt(10000))
+		amount := new(big.Int).Mul(big.NewInt(100), big.NewInt(params.Shannon))
+		tx, err := token.TransferProxy(transactorPool, common.HexToAddress(poolPubKey), common.HexToAddress("0xea16d7bfcffcf2efd8b55d0f8e8263fe5420ed34"), amount)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		txHash := tx.Hash()
+		log.Println("TX: ", txHash.Hex())
+		return
+	}
+
 	if false {
 		transactorOpts := eth.TransactorOptions{
 			GasLimit: 540000,
@@ -161,7 +210,7 @@ func main() {
 		return
 	}
 	if true {
-		receipt, err := utils.TransactionReceipt(geth, ctx, "0x0d4e3bb4b7adb084735ac1407796c1a50ceb056210ff680cbe262a21aa5173b1")
+		receipt, err := utils.TransactionReceipt(geth, ctx, "0x83ee0e92585de35ad72d81d4f88e8402682c3cb4150ecd01bea6cfec28f02fe0")
 		if err != nil {
 			log.Fatalln(err)
 		}

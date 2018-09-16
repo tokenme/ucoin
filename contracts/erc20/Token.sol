@@ -1,72 +1,67 @@
-pragma solidity ^0.4.23;
+pragma solidity ^0.4.24;
 
-import "MintableToken.sol";
-import "StandardBurnableToken.sol";
-import "PausableToken.sol";
+import "ERC20Burnable.sol";
+import "ERC20Mintable.sol";
+import "ERC20Pausable.sol";
+import "ERC20Agentable.sol";
 
-contract Token is MintableToken, StandardBurnableToken, PausableToken {
+contract Token is ERC20Burnable, ERC20Mintable, ERC20Pausable, ERC20Agentable {
 
-  string internal name_;
-  string internal symbol_;
-  uint8 internal decimals_ = 9;
-  uint256 internal initialSupply_;
+  string private _name;
+  string private _symbol;
+  uint8 private _decimals;
 
-  constructor(string _name, string _symbol, uint8 _decimals, uint256 _initialSupply) public {
-    name_ = _name;
-    symbol_ = _symbol;
-    decimals_ = _decimals;
-    initialSupply_ = _initialSupply;
-    totalSupply_ = initialSupply_;
-    balances[msg.sender] = initialSupply_;
-    emit Transfer(0x0, msg.sender, initialSupply_);
+  constructor(string name, string symbol, uint8 decimals, uint256 initialSupply) public {
+    _name = name;
+    _symbol = symbol;
+    _decimals = decimals;
+    _initialSupply = initialSupply;
+    _totalSupply = _initialSupply;
+    _balances[msg.sender] = _initialSupply;
+    emit Transfer(0x0, msg.sender, _initialSupply);
   }
 
-  function name() external view returns (string) {
-    return name_;
+  /**
+   * @return the name of the token.
+   */
+  function name() public view returns(string) {
+    return _name;
   }
 
-  function symbol() external view returns (string) {
-    return symbol_;
+  /**
+   * @return the symbol of the token.
+   */
+  function symbol() public view returns(string) {
+    return _symbol;
   }
 
-  function decimals() external view returns (uint8) {
-    return decimals_;
+  /**
+   * @return the number of decimals of the token.
+   */
+  function decimals() public view returns(uint8) {
+    return _decimals;
   }
 
-  function initialSupply() external view returns (uint256) {
-    return initialSupply_;
-  }
-
-  function circulatingSupply() public view returns (uint256) {
-    require(totalSupply_ >= balances[owner]);
-    return totalSupply_.sub(balances[owner]);
-  }
-
-  function meta(address owner) public view returns (string, string, uint8, uint256, uint256, uint256, uint256, uint256, uint256) {
+  function meta(address account) public view returns (string, string, uint8, uint256, uint256, uint256, uint256, uint256, uint256) {
     uint256 circulating = 0;
-    if (totalSupply_ > balances[owner]) {
-      circulating = totalSupply_.sub(balances[owner]);
+    if (_totalSupply > _balances[owner()]) {
+      circulating = _totalSupply.sub(_balances[owner()]);
     }
     uint256 balance = 0;
-    if (owner != address(0)) {
-      balance = balances[owner];
+    if (account != address(0)) {
+      balance = _balances[account];
     } else if (msg.sender != address(0)) {
-      balance = balances[msg.sender];
+      balance = _balances[msg.sender];
     }
-    return (name_, symbol_, decimals_, initialSupply_, totalSupply_, totalTransfers_, totalHolders_, circulating, balance);
+    return (_name, _symbol, _decimals, _initialSupply, _totalSupply, _totalTransfers, _totalHolders, circulating, balance);
   }
 
   function batchTransfer(address[] addresses, uint256[] tokenAmount) public returns (bool) {
     require(addresses.length > 0 && addresses.length == tokenAmount.length);
-    address _from = msg.sender;
     for (uint i = 0; i < addresses.length; i++) {
-        address _to = addresses[i]; 
+        address _to = addresses[i];
         uint256 _value = tokenAmount[i];
-        require(_to != address(0));
-        require(_value <= balances[_from]);
-        require(_value <= allowed[_from][msg.sender]);
-        
-        super.transferFrom(_from, _to, _value);
+        super.transfer(_to, _value);
     }
     return true;
   }
@@ -74,15 +69,12 @@ contract Token is MintableToken, StandardBurnableToken, PausableToken {
   function batchTransferFrom(address _from, address[] addresses, uint256[] tokenAmount) public returns (bool) {
     require(addresses.length > 0 && addresses.length == tokenAmount.length);
     for (uint i = 0; i < addresses.length; i++) {
-        address _to = addresses[i]; 
+        address _to = addresses[i];
         uint256 _value = tokenAmount[i];
-        require(_to != address(0));
-        require(_value <= balances[_from]);
-        require(_value <= allowed[_from][msg.sender]);
-
         super.transferFrom(_from, _to, _value);
     }
     return true;
   }
+
 
 }

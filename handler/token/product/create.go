@@ -119,7 +119,7 @@ func CreateHandler(c *gin.Context) {
 		GasLimit: 2100000,
 	}
 	eth.TransactorUpdate(transactor, transactorOpts, c)
-	contractAddress, tx, _, err := utils.DeployNFToken(transactor, Service.Geth, req.Title, erc20Token.Symbol, Config.ERC721Template)
+	contractAddress, tx, _, err := utils.DeployNFToken(transactor, Service.Geth, req.Title, erc20Token.Symbol)
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
